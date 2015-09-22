@@ -1,3 +1,8 @@
+"""
+Another implementation / good reference:
+https://bitbucket.org/pyglet/pyglet/src/f388bbe83f4e59079be1329eb61761adcc7f646c/pyglet/input/wintab.py?at=default&fileviewer=file-view-default
+"""
+
 import ctypes
 from ctypes import wintypes, c_char, c_int, POINTER
 from ctypes.wintypes import HWND, UINT, DWORD, LONG, HANDLE, BOOL, LPVOID
