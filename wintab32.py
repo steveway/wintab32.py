@@ -173,7 +173,7 @@ if __name__ == "__main__":
         if n > 0:
             xpos = (buf[0].pkX/float(lc.lcOutExtX))*lc.lcSysExtX
             if origtopleft:
-                ypos = abs(((buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY)-lc.lcSysExtY)
+                ypos = lc.lcSysExtY - ((buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY)
             else:
                 ypos = (buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY
             pressure = buf[0].pkNormalPressure / float(axisinfo.get_bias())
