@@ -166,12 +166,15 @@ if __name__ == "__main__":
 
     axisinfo = AXIS()
     rslt2 = dll.WTInfoW(WTI_DEFCONTEXT, DVC_NPRESSURE,axisinfo)
-
+    origtopleft = True
     buf = (10*PACKET)()
     while True:
         n = dll.WTPacketsGet(hctx, 1, buf)
         if n > 0:
             xpos = (buf[0].pkX/float(lc.lcOutExtX))*lc.lcSysExtX
-            ypos = (buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY
+            if origtopleft:
+                ypos = abs(((buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY)-lc.lcSysExtY)
+            else:
+                ypos = (buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY
             pressure = buf[0].pkNormalPressure / float(axisinfo.get_bias())
             print("%f %f %f" % (xpos, ypos, pressure))
