@@ -6,6 +6,7 @@ https://bitbucket.org/pyglet/pyglet/src/f388bbe83f4e59079be1329eb61761adcc7f646c
 import ctypes
 from ctypes import wintypes, c_char, c_int, POINTER
 from ctypes.wintypes import HWND, UINT, DWORD, LONG, HANDLE, BOOL, LPVOID
+import atexit
 
 HCTX = HANDLE
 WTPKT = DWORD
@@ -36,8 +37,8 @@ DVC_Z = 14
 DVC_NPRESSURE = 15
 DVC_TPRESSURE = 16
 DVC_ORIENTATION = 17
-DVC_ROTATION = 18 # 1.1 
-DVC_PNPID = 19 # 1.1 
+DVC_ROTATION = 18  # 1.1
+DVC_PNPID = 19  # 1.1
 DVC_MAX = 19
 
 
@@ -50,7 +51,7 @@ class AXIS(ctypes.Structure):
     )
 
     def get_scale(self):
-        #if self.axMin < 0:
+        # if self.axMin < 0:
         #    self.axMax += abs(self.axMin)
         #    self.axMin += abs(self.axMin)
         return 1 / float(self.axMax - self.axMin)
@@ -59,10 +60,9 @@ class AXIS(ctypes.Structure):
         return -self.axMin
 
 
-
 class LOGCONTEXTA(ctypes.Structure):
     _fields_ = [
-        ('lcName', 40*c_char),
+        ('lcName', 40 * c_char),
         ('lcOptions', UINT),
         ('lcStatus', UINT),
         ('lcLocks', UINT),
@@ -98,23 +98,25 @@ class LOGCONTEXTA(ctypes.Structure):
         ('lcSysSensY', FIX32)
     ]
 
-PK_CONTEXT =        0x0001  # reporting context */
-PK_STATUS =             0x0002  # status bits */
-PK_TIME =           0x0004  # time stamp */
-PK_CHANGED =        0x0008  # change bit vector */
-PK_SERIAL_NUMBER = 0x0010   # packet serial number */
-PK_CURSOR =             0x0020  # reporting cursor */
-PK_BUTTONS =        0x0040  # button information */
-PK_X =              0x0080  # x axis */
-PK_Y =              0x0100  # y axis */
-PK_Z =              0x0200  # z axis */
-PK_NORMAL_PRESSURE = 0x0400 # normal or tip pressure */
-PK_TANGENT_PRESSURE = 0x0800    # tangential or barrel pressure */
-PK_ORIENTATION =    0x1000  # orientation info: tilts */
-PK_ROTATION =       0x2000  # rotation info; 1.1 */
+
+PK_CONTEXT = 0x0001  # reporting context */
+PK_STATUS = 0x0002  # status bits */
+PK_TIME = 0x0004  # time stamp */
+PK_CHANGED = 0x0008  # change bit vector */
+PK_SERIAL_NUMBER = 0x0010  # packet serial number */
+PK_CURSOR = 0x0020  # reporting cursor */
+PK_BUTTONS = 0x0040  # button information */
+PK_X = 0x0080  # x axis */
+PK_Y = 0x0100  # y axis */
+PK_Z = 0x0200  # z axis */
+PK_NORMAL_PRESSURE = 0x0400  # normal or tip pressure */
+PK_TANGENT_PRESSURE = 0x0800  # tangential or barrel pressure */
+PK_ORIENTATION = 0x1000  # orientation info: tilts */
+PK_ROTATION = 0x2000  # rotation info; 1.1 */
 
 lcPktData = (PK_CHANGED | PK_CURSOR | PK_BUTTONS | PK_X | PK_Y | PK_NORMAL_PRESSURE)
 lcPktMode = 0
+
 
 class PACKET(ctypes.Structure):
     _fields_ = [
@@ -125,6 +127,7 @@ class PACKET(ctypes.Structure):
         ('pkY', LONG),
         ('pkNormalPressure', UINT)
     ]
+
 
 WTI_DEFCONTEXT = 3
 
@@ -153,28 +156,57 @@ dll.WTPacketsGet.restype = c_int
 dll.WTPacket.argtypes = [HCTX, UINT, POINTER(PACKET)]
 dll.WTPacket.restype = BOOL
 
-if __name__ == "__main__":
-    lc = LOGCONTEXTA()
-    rslt = dll.WTInfoA(WTI_DEFCONTEXT, 0, lc);
-    print(lc.lcOptions)
-    lc.lcPktData = lcPktData
-    lc.lcPktMode = lcPktMode
-    
-    #lc.lcOptions = (CXO_SYSTEM | CXO_PEN | CXO_MESSAGES)
-    print(lc.lcOptions)
-    hctx = dll.WTOpenA(HWND(31234), lc, 1)
 
-    axisinfo = AXIS()
-    rslt2 = dll.WTInfoW(WTI_DEFCONTEXT, DVC_NPRESSURE,axisinfo)
-    origtopleft = True
-    buf = (10*PACKET)()
-    while True:
-        n = dll.WTPacketsGet(hctx, 1, buf)
+class WintabInput:
+    hctx = None
+    buf = None
+    lc = None
+    origtopleft = None
+    rslt = None
+    pressure = None
+    xpos = None
+    ypos = None
+
+    def __init__(self, userhwnd=HWND(31234)):
+        self.lc = LOGCONTEXTA()
+        self.rslt = dll.WTInfoA(WTI_DEFCONTEXT, 0, self.lc)
+        print(self.lc.lcOptions)
+        self.lc.lcPktData = lcPktData
+        self.lc.lcPktMode = lcPktMode
+
+        # lc.lcOptions = (CXO_SYSTEM | CXO_PEN | CXO_MESSAGES)
+        print(self.lc.lcOptions)
+        self.hctx = dll.WTOpenA(userhwnd, self.lc, 1)
+        self.axisinfo = AXIS()
+        self.rslt2 = dll.WTInfoW(WTI_DEFCONTEXT, DVC_NPRESSURE, self.axisinfo)
+        self.origtopleft = True
+        self.buf = (10 * PACKET)()
+
+    def get_packet(self):
+        n = dll.WTPacketsGet(self.hctx, 1, self.buf)
         if n > 0:
-            xpos = (buf[0].pkX/float(lc.lcOutExtX))*lc.lcSysExtX
-            if origtopleft:
-                ypos = lc.lcSysExtY - ((buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY)
+            self.xpos = (self.buf[0].pkX / float(self.lc.lcOutExtX)) * self.lc.lcSysExtX
+            if self.origtopleft:
+                self.ypos = self.lc.lcSysExtY - ((self.buf[0].pkY / float(self.lc.lcOutExtY)) * self.lc.lcSysExtY)
             else:
-                ypos = (buf[0].pkY/float(lc.lcOutExtY))*lc.lcSysExtY
-            pressure = buf[0].pkNormalPressure / float(axisinfo.get_bias())
-            print("%f %f %f" % (xpos, ypos, pressure))
+                self.ypos = (self.buf[0].pkY / float(self.lc.lcOutExtY)) * self.lc.lcSysExtY
+            self.pressure = self.buf[0].pkNormalPressure / float(self.axisinfo.get_bias())
+            return self.xpos, self.ypos, self.pressure
+        else:
+            return None
+
+    def close(self):
+        dll.WTClose(self.rslt2)
+        print("Cleaned Up")
+
+
+if __name__ == "__main__":
+    test = WintabInput()
+    atexit.register(test.close)
+    try:
+        while True:
+            output = test.get_packet()
+            if output:
+                print("X:%f Y:%f Z:%f" % output)
+    finally:
+        test.close()
