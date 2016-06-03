@@ -4,7 +4,7 @@ https://bitbucket.org/pyglet/pyglet/src/f388bbe83f4e59079be1329eb61761adcc7f646c
 """
 
 import ctypes
-from ctypes import wintypes, c_char, c_int, POINTER
+from ctypes import windll, wintypes, c_char, c_int, POINTER 
 from ctypes.wintypes import HWND, UINT, DWORD, LONG, HANDLE, BOOL, LPVOID
 import atexit
 
@@ -168,6 +168,9 @@ class WintabInput:
     ypos = None
 
     def __init__(self, userhwnd=HWND(31234)):
+        # get window handle
+        self.hwnd = windll.user32.GetActiveWindow()
+        # we might want to use this as hour userhwnd
         self.lc = LOGCONTEXTA()
         self.rslt = dll.WTInfoA(WTI_DEFCONTEXT, 0, self.lc)
         print(self.lc.lcOptions)
