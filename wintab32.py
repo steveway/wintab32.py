@@ -167,11 +167,13 @@ dll = ctypes.WinDLL("wintab32.dll")
 
 lib = dll
 
+
 def wtinfo(category, index, buffer):
     size = lib.WTInfoW(category, index, None)
     assert size <= ctypes.sizeof(buffer)
     lib.WTInfoW(category, index, ctypes.byref(buffer))
     return buffer
+
 
 def wtinfo_string(category, index):
     size = lib.WTInfoW(category, index, None)
@@ -179,25 +181,30 @@ def wtinfo_string(category, index):
     lib.WTInfoW(category, index, buffer)
     return buffer.value
 
+
 def wtinfo_uint(category, index):
     buffer = wintab.UINT()
     lib.WTInfoW(category, index, ctypes.byref(buffer))
     return buffer.value
+
 
 def wtinfo_word(category, index):
     buffer = wintab.WORD()
     lib.WTInfoW(category, index, ctypes.byref(buffer))
     return buffer.value
 
+
 def wtinfo_dword(category, index):
     buffer = wintab.DWORD()
     lib.WTInfoW(category, index, ctypes.byref(buffer))
     return buffer.value
 
+
 def wtinfo_wtpkt(category, index):
     buffer = wintab.WTPKT()
     lib.WTInfoW(category, index, ctypes.byref(buffer))
     return buffer.value
+
 
 def wtinfo_bool(category, index):
     buffer = wintab.BOOL()
@@ -220,6 +227,9 @@ class WintabInput:
     lcPktData = None
     lcPktMode = None
     hwnd = None
+    tpressure = None
+    axisinfo2 = None
+    rslt3 = None
 
     def __init__(self, temphwnd=31234):
         if temphwnd != 0:
@@ -249,8 +259,10 @@ class WintabInput:
         #self.hctx = dll.WTOpenA(userhwnd, self.lc, 1)
         self.hctx = lib.WTOpenW(self.hwnd, ctypes.byref(self.lc), True)
         self.axisinfo = wintab.AXIS()
+        self.axisinfo2 = wintab.AXIS()
         #self.rslt2 = dll.WTInfoW(WTI_DEFCONTEXT, DVC_NPRESSURE, self.axisinfo)
-        self.rslt2 = wtinfo(WTI_DEFCONTEXT, wintab.DVC_NPRESSURE, self.axisinfo)
+        self.rslt2 = wtinfo(wintab.WTI_DEFCONTEXT, wintab.DVC_NPRESSURE, self.axisinfo)
+        self.rslt3 = wtinfo(wintab.WTI_DEFCONTEXT, wintab.DVC_TPRESSURE, self.axisinfo2)
         self.origtopleft = True
         #self.buf = (10 * PACKET)()
         self.buf = wintab.PACKET()
@@ -267,6 +279,7 @@ class WintabInput:
             self.name = wtinfo_string(self._cursor, wintab.CSR_NAME).strip()
             self.xpos = (self.buf.pkX / float(self.lc.lcOutExtX)) * self.lc.lcSysExtX
             self.zpos = (self.buf.pkZ / float(self.lc.lcInOrgZ)) + 1
+            self.tpressure = float(self.buf.pkTangentPressure) / float(self.axisinfo2.get_bias())
             if self.origtopleft:
                 self.ypos = self.lc.lcSysExtY - ((self.buf.pkY / float(self.lc.lcOutExtY)) * self.lc.lcSysExtY)
             else:
@@ -275,16 +288,17 @@ class WintabInput:
                 self.pressure = float(self.buf.pkNormalPressure) / float(self.axisinfo.get_bias())
             except ZeroDivisionError:
                 self.pressure = 0
-            return self.name, self.xpos, self.ypos, self.pressure, self.zpos
+            return {"name": self.name, "x": self.xpos, "y": self.ypos, "pressure": self.pressure, "z": self.zpos,
+                    "tpressure": self.tpressure, "id": self._cursor}
         else:
             return None
 
     def close(self):
-        lib.WTClose(self.rslt2)
+        lib.WTClose(self.hctx)
         print("Cleaned Up")
 
 
-if __name__ == "__main__":
+def main():
     test = WintabInput(0)
     atexit.register(test.close)
     status = None
@@ -296,15 +310,17 @@ if __name__ == "__main__":
                     status = "on_enter"  # begin
                     print(status)
                 elif status == "on_enter":
-                    status = "on_move"  # update
+                    status = "on_move"  # update first
                     print(status)
                 elif status == "on_leave":
-                    status = "on_enter"  # begin
+                    status = "on_enter"  # begin (should be never normally, just in case)
                     print(status)
                 elif status == "on_move":
                     status = "on_move"  # update
                     print("on_move2")
-                print("< %s > X:%f Y:%f Pressure:%f Z:%f" % output)
+                print("<{name}> ID:{id} X:{x} Y:{y} Pressure:{pressure} Z:{z} TPressure:{tpressure}".format(
+                    name=output["name"], x=output["x"], y=output["y"], z=output["z"],
+                    pressure=output["pressure"], tpressure=output["tpressure"], id=output["id"]))
             else:
                 if status:
                     if status != "on_leave":
@@ -314,3 +330,6 @@ if __name__ == "__main__":
                         status = None
     finally:
         test.close()
+
+if __name__ == "__main__":
+    main()
